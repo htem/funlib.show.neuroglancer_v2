@@ -1,6 +1,7 @@
 from .scale_pyramid import ScalePyramid
 import neuroglancer
 
+
 def add_layer(
         context,
         array,
@@ -8,10 +9,11 @@ def add_layer(
         opacity=None,
         shader=None,
         visible=True,
-        reversed_axes=True,
         scale_rgb=False,
         c=[0,1,2],
-        h=[0.0,0.0,1.0]):
+        h=[0.0,0.0,1.0],
+        axis_names=None,
+        units=None):
 
     '''Add a layer to a neuroglancer context.
 
@@ -46,11 +48,6 @@ def add_layer(
 
             A bool which defines layer visibility
 
-        reversed_axes:
-
-            A bool which reverses the offset and voxel_size
-            in the scale pyramid for multiscale data
-
         scale_rgb:
 
             Multiply the RGB vector by 255
@@ -62,9 +59,32 @@ def add_layer(
         h (hue):
 
             A list of floats to define rgb color for an rgba shader
+
+        axis_names:
+
+            Names of the axes in the data (e.g. ['t', 'z', 'y', 'x'])
+            Defaults to the last n elements in ['t', 'c', 'z', 'y', 'x']
+            where n = number of dimensions in the array.
+
+        units:
+
+            List of strings representing the units of each axis. Defaults
+            to 'nm' for spatial dimensions and '' for other dimensions.
     '''
 
     is_multiscale = type(array) == list
+
+    if is_multiscale:
+        ndim = len(array[0].voxel_size)
+    else:
+        ndim = len(array.voxel_size)
+
+    if not axis_names:
+        axis_names = ['t', 'c', 'z', 'y', 'x'][-1*ndim:]
+
+    if not units:
+        # default of nm
+        units = ['', '', 'nm', 'nm', 'nm'][-1*ndim:]
 
     if shader is None:
         a = array if not is_multiscale else array[0]
@@ -136,32 +156,27 @@ void main() {
         for v in array:
             print("voxel size: ", v.voxel_size)
 
-        if reversed_axes:
-
-            layer = ScalePyramid(
-                [
-                    neuroglancer.LocalVolume(
-                        data=v.data,
-                        offset=v.roi.get_offset()[::-1],
-                        voxel_size=v.voxel_size[::-1])
-                    for v in array
-                ])
-        else:
-
-            layer = ScalePyramid(
-                [
-                    neuroglancer.LocalVolume(
-                        data=v.data,
-                        offset=v.roi.get_offset(),
-                        voxel_size=v.voxel_size)
-                    for v in array
-                ])
+        layer = ScalePyramid(
+            [
+                neuroglancer.LocalVolume(
+                    data=v.data,
+                    dimensions=neuroglancer.CoordinateSpace(
+                        scales=v.voxel_size,
+                        units=units,
+                        names=axis_names),
+                    voxel_offset=v.roi.get_offset() / v.voxel_size)
+                for v in array
+            ])
 
     else:
+
         layer = neuroglancer.LocalVolume(
             data=array.data,
-            offset=array.roi.get_offset()[::-1],
-            voxel_size=array.voxel_size[::-1])
+            dimensions=neuroglancer.CoordinateSpace(
+                scales=array.voxel_size,
+                units=units,
+                names=axis_names),
+            voxel_offset=(array.roi.get_offset() / array.voxel_size))
 
     context.layers.append(
             name=name,
