@@ -39,11 +39,21 @@ def add_layer(
         shader:
 
             A string to be used as the shader. If set to ``'rgb'``, an RGB
-            shader will be used.
+            shader will be used. Other options include 'rgba', 'heatmap',
+            and 'mask'.
 
         visible:
 
             A bool which defines layer visibility
+
+        reversed_axes:
+
+            A bool which reverses the offset and voxel_size
+            in the scale pyramid for multiscale data
+
+        scale_rgb:
+
+            Multiply the RGB vector by 255
 
         c (channel):
 
