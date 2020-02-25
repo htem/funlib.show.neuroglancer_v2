@@ -10,8 +10,8 @@ def add_layer(
         shader=None,
         visible=True,
         scale_rgb=False,
-        c=[0,1,2],
-        h=[0.0,0.0,1.0],
+        c=[0, 1, 2],
+        h=[0.0, 0.0, 1.0],
         axis_names=None,
         units=None):
 
@@ -96,7 +96,7 @@ def add_layer(
 
     if shader == 'rgb':
         if scale_rgb:
-            shader="""
+            shader = """
 void main() {
     emitRGB(
         255.0*vec3(
@@ -104,10 +104,10 @@ void main() {
             toNormalized(getDataValue(%i)),
             toNormalized(getDataValue(%i)))
         );
-}"""%(c[0],c[1],c[2])
+}""" % (c[0], c[1], c[2])
 
         else:
-            shader="""
+            shader = """
 void main() {
     emitRGB(
         vec3(
@@ -115,26 +115,26 @@ void main() {
             toNormalized(getDataValue(%i)),
             toNormalized(getDataValue(%i)))
         );
-}"""%(c[0],c[1],c[2])
+}""" % (c[0], c[1], c[2])
 
     elif shader == 'rgba':
-        shader="""
+        shader = """
 void main() {
     emitRGBA(
         vec4(
         %f, %f, %f,
         toNormalized(getDataValue()))
         );
-}"""%(h[0], h[1], h[2])
+}""" % (h[0], h[1], h[2])
 
     elif shader == 'mask':
-        shader="""
+        shader = """
 void main() {
   emitGrayscale(255.0*toNormalized(getDataValue()));
 }"""
 
     elif shader == 'heatmap':
-        shader="""
+        shader = """
 void main() {
     float v = toNormalized(getDataValue(0));
     vec4 rgba = vec4(0,0,0,0);
