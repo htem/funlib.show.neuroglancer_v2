@@ -1,14 +1,12 @@
 from .scale_pyramid import ScalePyramid
 import neuroglancer
+from neuroglancer.local_volume import MeshesNotSupportedForVolume
 
 
 def new_layer(
         array,
         units=None,
-        axis_names=None
-        # ondemand_mesh_scale_key=(1, 1, 1),
-        # c=[0,1,2],
-        # h=[0.0,0.0,1.0],
+        axis_names=None,
         ):
     '''Create a layer which can be shared across contexts.
 
@@ -64,11 +62,14 @@ def new_layer(
                     scales=scales,
                     units=units,
                     names=axis_names),
-                voxel_offset=voxel_offset)
+                )
             setattr(local_vol, "voxel_size", v.voxel_size)
+            setattr(local_vol, "pyramid_voxel_offset", voxel_offset)
             local_volumes.append(local_vol)
 
-        layer = ScalePyramid(local_volumes)
+        layer = ScalePyramid(
+            local_volumes,
+            )
 
     else:
 
@@ -104,7 +105,9 @@ def add_layer(
         c=[0, 1, 2],
         h=[0.0, 0.0, 1.0],
         axis_names=None,
-        units=None):
+        units=None,
+        ondemand_mesh_scale_key=(1, 1, 1),
+        ):
 
     '''Add a layer to a neuroglancer context.
 
@@ -161,6 +164,14 @@ def add_layer(
 
             List of strings representing the units of each axis. Defaults
             to 'nm' for spatial dimensions and '' for other dimensions.
+
+        ondemand_mesh_scale_key:
+
+            Tuple of the scale key to be used for neuroglancer's built-in
+            on-demand meshing engine.
+            Default: (1, 1, 1), using the highest resolution data available.
+            Set to `None` to disable meshing entirely (useful for very big
+            dataset to avoid accidental meshing).
     '''
 
     if context.dimensions.rank == 0:
@@ -241,9 +252,17 @@ void main() {
         layer = new_layer(
             array,
             units=units,
-            axis_names=axis_names
-            # ondemand_mesh_scale_key=ondemand_mesh_scale_key,
+            axis_names=axis_names,
             )
+
+    if ondemand_mesh_scale_key is None:
+        # disabling meshing
+        def get_object_mesh(object_id):
+            raise MeshesNotSupportedForVolume()
+        layer.get_object_mesh = get_object_mesh
+    else:
+        if is_multiscale:
+            layer.set_ondemand_mesh_scale_key(ondemand_mesh_scale_key)
 
     context.layers.append(
             name=name,

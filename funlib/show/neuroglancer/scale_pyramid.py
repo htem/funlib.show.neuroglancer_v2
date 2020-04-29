@@ -57,7 +57,10 @@ class ScalePyramid(neuroglancer.LocalVolume):
                 One ``LocalVolume`` per provided resolution.
     '''
 
-    def __init__(self, volume_layers):
+    def __init__(
+            self,
+            volume_layers,
+            ):
 
         super(neuroglancer.LocalVolume, self).__init__()
 
@@ -90,17 +93,21 @@ class ScalePyramid(neuroglancer.LocalVolume):
             self.total_dim_length-3,
             self.total_dim_length)
 
-        self.ref_offset = (
-            self.ref_layer.voxel_offset[self.spatial_index_slice] *
-            self.ref_layer.voxel_size)
-
         self.scale_pyramid_map = \
             self.compute_near_isotropic_downsampling_scales()
 
-        logger.debug("min_voxel_size: %s", min_voxel_size)
-        logger.debug("scale keys: %s", self.volume_layers.keys())
+        self.ondemand_mesh_scale_key = self.ref_layer_key
+
         logger.debug(self.info())
+        logger.debug("min_voxel_size: %s", min_voxel_size)
+        logger.debug("provided scale keys: %s", self.volume_layers.keys())
         logger.debug("Pyramid map: %s" % self.scale_pyramid_map)
+
+    def set_ondemand_mesh_scale_key(self, key):
+        if key not in self.volume_layers:
+            print("Available mesh scales:", self.volume_layers.keys())
+            raise RuntimeError("Unavailable mesh key: %s" % str(key))
+        self.ondemand_mesh_scale_key = key
 
     @property
     def volume_type(self):
@@ -156,7 +163,8 @@ class ScalePyramid(neuroglancer.LocalVolume):
             )
 
     def get_object_mesh(self, obj_id):
-        return self.volume_layers[self.ref_layer_key].get_object_mesh(obj_id)
+        return self.volume_layers[
+            self.ondemand_mesh_scale_key].get_object_mesh(obj_id)
 
     def invalidate(self):
         return self.volume_layers[self.ref_layer_key].invalidate()
@@ -197,15 +205,16 @@ class ScalePyramid(neuroglancer.LocalVolume):
                 repeat_counter = 0
             last_closest = closest_scale
 
-            voxel_offset = self.get_voxel_offset_to_ref(
-                self.volume_layers[closest_scale])
+            ds_factor = (
+                np.array(scale)/np.array(closest_scale)).astype(int).tolist()
+
+            voxel_offset = self.get_voxel_offset_to_abs(
+                self.volume_layers[closest_scale],
+                ds_factor)
 
             # adjust parameters to include non-dim scales that NG expects
             while len(voxel_offset) < self.total_dim_length:
                 voxel_offset.insert(0, 0)
-
-            ds_factor = (
-                np.array(scale)/np.array(closest_scale)).astype(int).tolist()
             while len(ds_factor) < self.total_dim_length:
                 ds_factor.insert(0, 1)
             ds_factor = ','.join([str(k) for k in ds_factor])
@@ -234,10 +243,10 @@ class ScalePyramid(neuroglancer.LocalVolume):
         assert best_scale is not None
         return best_scale
 
-    def get_voxel_offset_to_ref(self, layer):
+    def get_voxel_offset_to_abs(self, layer, ds_factor):
 
-        real_offset = (layer.voxel_offset[self.spatial_index_slice] *
-                       layer.voxel_size)
-        real_offset -= self.ref_offset
-        voxel_offset = real_offset / layer.voxel_size
+        voxel_offset = layer.pyramid_voxel_offset[self.spatial_index_slice]
+        assert len(ds_factor) == len(voxel_offset)
+        voxel_offset = [
+            int(n/m) for n, m in zip(voxel_offset, ds_factor)]
         return [int(k) for k in voxel_offset]
